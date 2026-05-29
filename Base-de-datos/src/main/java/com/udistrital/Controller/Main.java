@@ -7,6 +7,5 @@ public class Main {
         //menu.iniciar();
     	
     	Controller control = new Controller();
-    	
     }
 }

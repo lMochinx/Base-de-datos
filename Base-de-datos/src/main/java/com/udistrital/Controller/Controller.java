@@ -8,8 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.udistrital.Model.ArbolAVL;
 import com.udistrital.Model.Campo;
 import com.udistrital.Model.Fila;
+import com.udistrital.Model.Persistencia;
 import com.udistrital.Model.Tabla;
 import com.udistrital.View.Consola;
 
@@ -17,9 +19,14 @@ public class Controller {
 	
 	private Map<String, Tabla> tablas = new HashMap<>();
 	private Consola consola;
+	private static final Set<String> tiposPermitidos = Set.of("INT", "TEXT", "REAL", "BOOL");
+	
 	
 	public Controller() {
 		consola = new Consola();
+		this.tablas = Persistencia.cargarTodas();
+	    if (!tablas.isEmpty())
+	        consola.mostrarMensaje(">> Tablas restauradas: " + tablas.keySet());
 		iniciar();
 	}
 
@@ -111,12 +118,15 @@ public class Controller {
             int wi     = sin.toUpperCase().indexOf("WHERE");
             if (wi != -1) {
                 String tabla = sin.substring(0, wi).trim();
-                String[] tok = sin.substring(wi + 5).trim().split("=", 2);
+                String cond  = sin.substring(wi + 5).trim();
+                
+                String[] tok = cond.split("\\s*=\\s*", 2);
                 return eliminar(tabla, tok[0].trim(), tok[1].trim());
             }
-            return eliminar(sin.trim(), null, null); // sin condición
+            return eliminar(sin.trim(), null, null);
         } catch (Exception e) {
-            return "ERROR de sintaxis. Uso: DELETE FROM tabla [WHERE campo = valor]";
+            consola.mostrarMensaje("DEBUG excepcion: " + e.getMessage());
+            return "ERROR de sintaxis. Uso: DELETE FROM tabla WHERE campo = valor";
         }
     }
     
@@ -187,7 +197,15 @@ public class Controller {
     public String crearTabla(String nombre, List<Campo> campos) {
         if (tablas.containsKey(nombre))
             return "ERROR: la tabla '" + nombre + "' ya existe.";
+        
+        // Valida tipos de cada campo
+        for (Campo campo : campos) {
+            if (!tiposPermitidos.contains(campo.tipo.toUpperCase()))
+                return "ERROR: tipo '" + campo.tipo + "' no permitido en campo '" + campo.nombre + "'. Tipos válidos: INT, TEXT, REAL, BOOL";
+        }
+        
         tablas.put(nombre, new Tabla(nombre, campos));
+        Persistencia.guardarTabla(tablas.get(nombre));
         return "Tabla '" + nombre + "' creada.";
     }
 
@@ -195,6 +213,7 @@ public class Controller {
         if (!tablas.containsKey(nombre))
             return "ERROR: la tabla '" + nombre + "' no existe.";
         tablas.remove(nombre);
+        Persistencia.eliminarArchivo(nombre);
         return "Tabla '" + nombre + "' eliminada.";
     }
 
@@ -210,11 +229,13 @@ public class Controller {
         Tabla tabla = obtenerTabla(nombreTabla);
         if (tabla == null)
             return "ERROR: la tabla '" + nombreTabla + "' no existe.";
+        
         if (columnas.size() != valores.size())
             return "ERROR: numero de columnas y valores no coincide.";
 
         Map<String, Object> datos = new LinkedHashMap<>();
-        int claveValor = -1;
+        Object claveValor = null;
+        int claveHash = -1;
 
         for (int i = 0; i < columnas.size(); i++) {
             String nombreCampo = columnas.get(i);
@@ -232,20 +253,24 @@ public class Controller {
             datos.put(campo.nombre, valorTipado);
 
             if (campo.esPK) {
-                if (!(valorTipado instanceof Integer))
-                    return "ERROR: la clave primaria debe ser INT.";
-                claveValor = (Integer) valorTipado;
+                if (valorTipado instanceof Boolean)
+                    return "ERROR: el campo PK no puede ser de tipo BOOL.";
+
+                claveValor = valorTipado;
+
+                claveHash = obtenerHash(valorTipado); 
             }
         }
 
-        if (claveValor == -1)
+        if (claveValor == null)
             return "ERROR: debes incluir el campo PK en el INSERT.";
 
         // Verifica que la clave no exista
-        if (tabla.indice.buscar(claveValor) != null)
+        if (tabla.indice.buscar(claveHash) != null)
             return "ERROR: ya existe una fila con clave " + claveValor + ".";
 
-        tabla.indice.insertar(claveValor, new Fila(datos));
+        tabla.indice.insertar(claveHash, new Fila(datos));
+        Persistencia.guardarTabla(tabla);
         return "Fila insertada en '" + nombreTabla + "'.";
     }
 
@@ -267,24 +292,27 @@ public class Controller {
     }
 
     public String actualizar(String nombreTabla, String campoSet, String nuevoValor, String campoCond, String valorCond) {
-        Tabla tabla = obtenerTabla(nombreTabla);
+    	Tabla tabla = obtenerTabla(nombreTabla);
         if (tabla == null)
             return "ERROR: la tabla '" + nombreTabla + "' no existe.";
+
+        Campo campo = tabla.campos.stream()
+            .filter(c -> c.nombre.equalsIgnoreCase(campoSet))
+            .findFirst().orElse(null);
+        if (campo == null) return "ERROR: campo '" + campoSet + "' no existe.";
+
+        Object valorTipado = parsearValor(nuevoValor, campo.tipo);
+        if (valorTipado == null) return "ERROR: valor inválido para tipo " + campo.tipo;
 
         List<Fila> filas = tabla.indice.inOrdenFilas();
         int count = 0;
         for (Fila fila : filas) {
-            if (coincide(fila, campoCond, valorCond)) {
-                Campo campo = tabla.campos.stream()
-                    .filter(c -> c.nombre.equalsIgnoreCase(campoSet))
-                    .findFirst().orElse(null);
-                if (campo == null) return "ERROR: campo '" + campoSet + "' no existe.";
-                Object valorTipado = parsearValor(nuevoValor, campo.tipo);
-                if (valorTipado == null) return "ERROR: valor inválido para tipo " + campo.tipo;
+            if (campoCond == null || coincide(fila, campoCond, valorCond)) { // ← el fix
                 fila.datos.put(campo.nombre, valorTipado);
                 count++;
             }
         }
+        Persistencia.guardarTabla(tabla);
         return count + " fila(s) actualizada(s).";
     }
 
@@ -293,23 +321,37 @@ public class Controller {
         if (tabla == null)
             return "ERROR: la tabla '" + nombreTabla + "' no existe.";
 
-        // Si la condición es sobre la PK usamos el arbol directamente.
+        if (campoCond == null) {
+            tabla.indice = new ArbolAVL();
+            Persistencia.guardarTabla(tabla);
+            return "Todas las filas eliminadas de '" + nombreTabla + "'.";
+        }
+
         Campo pk = tabla.campos.stream().filter(c -> c.esPK).findFirst().orElse(null);
+
         if (pk != null && pk.nombre.equalsIgnoreCase(campoCond)) {
-            int clave = Integer.parseInt(valorCond.trim());
-            if (tabla.indice.buscar(clave) == null)
+            Object valorTipado = parsearValor(valorCond, pk.tipo); // ← limpia comillas y respeta tipo
+            if (valorTipado == null)
+                return "ERROR: valor inválido para tipo " + pk.tipo;
+
+            int claveHash = obtenerHash(valorTipado);
+            if (tabla.indice.buscar(claveHash) == null)
                 return "ERROR: no existe fila con " + campoCond + " = " + valorCond;
-            tabla.indice.eliminar(clave);
+
+            tabla.indice.eliminar(claveHash);
+            Persistencia.guardarTabla(tabla);
             return "Fila eliminada.";
         }
 
-        // Condicion sobre campo no-PK: buscar clave y elimina.
+        // Condición sobre campo no-PK
         List<Fila> filas = tabla.indice.inOrdenFilas();
         List<Integer> clavesAEliminar = new ArrayList<>();
         for (Fila fila : filas) {
             if (coincide(fila, campoCond, valorCond)) {
-                // recupera la clave PK de esa fila
-                if (pk != null) clavesAEliminar.add((Integer) fila.datos.get(pk.nombre));
+                if (pk != null) {
+                    Object valorPK = fila.datos.get(pk.nombre);
+                    clavesAEliminar.add(obtenerHash(valorPK)); // ← hash en lugar de cast
+                }
             }
         }
         if (clavesAEliminar.isEmpty()) return "(ninguna fila coincide)";
@@ -344,5 +386,13 @@ public class Controller {
         if (actual == null) return false;
         String valorLimpio = valorRaw.trim().replaceAll("^'|'$", "");
         return actual.toString().equalsIgnoreCase(valorLimpio);
+    }
+    
+    // Agrega este helper en MotorCRUD
+    private int obtenerHash(Object valor) {
+    	if (valor instanceof Integer) return (Integer) valor;
+        if (valor instanceof Double)  return valor.hashCode();
+        if (valor instanceof String)  return valor.hashCode();
+        return valor.hashCode();
     }
 }
