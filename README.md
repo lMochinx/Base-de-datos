@@ -1,6 +1,6 @@
 # Motor de Base de Datos.
 
-Este repositorio contiene la implementación de un motor de base de datos en memoria desarrollado en Java. El sistema utiliza el patrón arquitectónico Modelo-Vista-Controlador (MVC) y basa su indexación principal en un **Árbol AVL auto-balanceable**, lo que garantiza un rendimiento de $O(\log n)$ en las operaciones de búsqueda, inserción y eliminación.
+Este repositorio contiene la implementación de un motor de base de datos en memoria desarrollado en Java. El sistema utiliza el patrón arquitectónico Modelo-Vista-Controlador (MVC) y basa su indexación principal en un Árbol AVL auto-balanceable, lo que garantiza un rendimiento de $O(\log n)$ en las operaciones de búsqueda, inserción y eliminación.
 
 Para la gestión de datos duplicados el algoritmo del árbol esta diseñado para enviar los valores repetidos al sub arbol izquierdo de manera estricta.
 
