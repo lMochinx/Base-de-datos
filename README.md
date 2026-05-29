@@ -21,7 +21,7 @@ El código está estructurado en el paquete `Base-de-datos`:
 
 1.  Copia el URL y mantenlo en el portapapeles:
     ```bash
-    git clone [https://github.com/lMochinx/Base-de-datos.git](https://github.com/lMochinx/Base-de-datos.git)
+    https://github.com/lMochinx/Base-de-datos.git
     ```
 2.  Abre el IDE  y selecciona **File > Import > Git > Projects from Git > Clone URL**. pega el URL y dale a Finish.
 3.  Navega hasta el paquete `udistrital.Controller` y localiza la clase `Main.java`.
