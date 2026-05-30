@@ -67,6 +67,21 @@ El motor interactúa mediante una interfaz de línea de comandos (REPL) que acep
 * **`HELP`**: Despliega la lista de ayuda.
 * **`EXIT`**: Finaliza la ejecución de la base de datos de manera segura.
 
+## Tecnologías Utilizadas
+* **Lenguaje:** Java (JDK 8+)
+* **Arquitectura:** MVC (Modelo-Vista-Controlador)
+* **Estructura de Datos:** Árbol AVL (Auto-balanceable)
+* **Persistencia:** JSON (Manejo de archivos I/O)
+* **Entorno de desarrollo:** NetBeans / Eclipse
+
+## Ejemplo rápido
+Para crear y poblar una tabla rápidamente:
+
+1. `CREATE TABLE usuarios (id INT [PK], nombre TEXT)`
+2. `INSERT INTO usuarios (id, nombre) VALUES (1, 'Cristian')`
+3. `INSERT INTO usuarios (id, nombre) VALUES (2, 'Valentina')`
+4. `SELECT * FROM usuarios`
+
 ## Autores
 * **Mateo Baez** - [lMochinx](https://github.com/lMochinx)
 * **Valentina Alfonso** - [Savior-arch](https://github.com/Savior-arch)
