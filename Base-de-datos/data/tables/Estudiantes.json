@@ -1,0 +1,40 @@
+{
+  "nombre": "estudiantes",
+  "campos": [
+    { "nombre": "id", "tipo": "INT", "esPK": true },
+    { "nombre": "nombre", "tipo": "TEXT", "esPK": false },
+    { "nombre": "edad", "tipo": "INT", "esPK": false }
+  ],
+  "filas": [
+    { "id": 1, "nombre": "Ana Lopez", "edad": 19 },
+    { "id": 2, "nombre": "Luis Perez", "edad": 19 },
+    { "id": 3, "nombre": "Carla Gomez", "edad": 24 },
+    { "id": 4, "nombre": "Pedro Ruiz", "edad": 20 },
+    { "id": 5, "nombre": "Maria Diaz", "edad": 24 },
+    { "id": 6, "nombre": "Jose Martinez", "edad": 20 },
+    { "id": 7, "nombre": "Laura Fernandez", "edad": 19 },
+    { "id": 8, "nombre": "Carlos Sanchez", "edad": 25 },
+    { "id": 9, "nombre": "Sofia Ramirez", "edad": 23 },
+    { "id": 10, "nombre": "Diego Torres", "edad": 25 },
+    { "id": 11, "nombre": "Valentina Gomez", "edad": 22 },
+    { "id": 12, "nombre": "Andres Herrera", "edad": 21 },
+    { "id": 13, "nombre": "Camila Ortiz", "edad": 19 },
+    { "id": 14, "nombre": "Felipe Castro", "edad": 23 },
+    { "id": 15, "nombre": "Natalia Rojas", "edad": 24 },
+    { "id": 16, "nombre": "Sebastian Morales", "edad": 25 },
+    { "id": 17, "nombre": "Daniela Jimenez", "edad": 19 },
+    { "id": 18, "nombre": "Mateo Romero", "edad": 21 },
+    { "id": 19, "nombre": "Paula Mendoza", "edad": 22 },
+    { "id": 20, "nombre": "Simon Gutierrez", "edad": 24 },
+    { "id": 21, "nombre": "Gabriela Serrano", "edad": 20 },
+    { "id": 22, "nombre": "Julian Herrera", "edad": 23 },
+    { "id": 23, "nombre": "Andrea Paredes", "edad": 19 },
+    { "id": 24, "nombre": "Ricardo Salazar", "edad": 24 },
+    { "id": 25, "nombre": "Marcela Aguirre", "edad": 19 },
+    { "id": 26, "nombre": "Esteban Leon", "edad": 21 },
+    { "id": 27, "nombre": "Veronica Mora", "edad": 21 },
+    { "id": 28, "nombre": "Hector Velez", "edad": 19 },
+    { "id": 29, "nombre": "Lorena Espinoza", "edad": 20 },
+    { "id": 30, "nombre": "Oscar Dominguez", "edad": 21 }
+  ]
+}

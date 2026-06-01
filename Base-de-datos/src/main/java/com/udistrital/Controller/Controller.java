@@ -14,9 +14,11 @@ import com.udistrital.Model.Fila;
 import com.udistrital.Model.Persistencia;
 import com.udistrital.Model.Tabla;
 import com.udistrital.View.Consola;
+import com.udistrital.View.VentanaPrincipal;
 
 public class Controller {
 	
+	private VentanaPrincipal vista;
 	private Map<String, Tabla> tablas = new HashMap<>();
 	private Consola consola;
 	private static final Set<String> tiposPermitidos = Set.of("INT", "TEXT", "REAL", "BOOL");
@@ -29,7 +31,54 @@ public class Controller {
 	        consola.mostrarMensaje(">> Tablas restauradas: " + tablas.keySet());
 		iniciar();
 	}
+	
+	// Constructor para GUI (nuevo)
+	public Controller(VentanaPrincipal vista) {
+	    this.vista = vista;
+	    this.tablas = Persistencia.cargarTodas();
+	    registrarListeners();
+	    actualizarVistaTablas();
+	    
+	 // Mostrar mensaje si hay tablas restauradas
+	    if (!tablas.isEmpty())
+	        vista.mostrarResultadoEnTablas(">> Tablas restauradas: " + tablas.keySet());
+	}
 
+	private void registrarListeners() {
+	    // Tablas
+	    vista.addCrearTablaListener(e -> guiCrearTabla());
+	    vista.addEliminarTablaListener(e -> guiEliminarTabla());
+	    vista.addListarTablasListener(e -> guiListarTablas());
+	    vista.addRefrescarTablasListener(e -> actualizarVistaTablas());
+
+	    // Registros
+	    vista.addInsertarListener(e -> guiInsertar());
+	    vista.addConsultarListener(e -> guiConsultar());
+	    vista.addActualizarListener(e -> guiActualizar());
+	    vista.addEliminarListener(e -> guiEliminarRegistro());
+	    vista.addCargarDatasetListener(e -> mostrarDialogoCargarDataset());
+	}
+	
+	private void mostrarDialogoCargarDataset() {
+	    String[] opciones = {"Dataset Pequeño (5 registros)", "Dataset Mediano (30 registros)", "Cancelar"};
+	    int seleccion = javax.swing.JOptionPane.showOptionDialog(
+	        null,
+	        "Seleccione el dataset de prueba:",
+	        "Cargar Datos de Prueba",
+	        javax.swing.JOptionPane.DEFAULT_OPTION,
+	        javax.swing.JOptionPane.QUESTION_MESSAGE,
+	        null,
+	        opciones,
+	        opciones[0]
+	    );
+	    
+	    if (seleccion == 0) {
+	        cargarDataset(1);  // Dataset pequeño
+	    } else if (seleccion == 1) {
+	        cargarDataset(2);  // Dataset mediano
+	    }
+	}
+	
 	public void iniciar() {
         consola.mostrarMensaje("MiniDB v1  — escribe HELP para ayuda");
         while (true) {
@@ -395,4 +444,238 @@ public class Controller {
         if (valor instanceof String)  return valor.hashCode();
         return valor.hashCode();
     }
+	
+	 private void guiCrearTabla() {
+	     vista.mostrarDialogoCrearTabla();
+	     String nombre = vista.getNombreTablaCreada();
+	     List<String[]> camposData = vista.getCamposCreados();
+	
+	     if (nombre == null || nombre.isEmpty()) return;
+	     if (camposData == null || camposData.isEmpty()) {
+	         vista.mostrarResultadoEnTablas("ERROR: debe agregar al menos un campo.");
+	         return;
+	     }
+	
+	     List<Campo> campos = new ArrayList<>();
+	     for (String[] d : camposData) {
+	         boolean esPK = Boolean.parseBoolean(d[2]);
+	         if (esPK && d[1].equalsIgnoreCase("BOOL")) { // ← validación nueva
+	             vista.mostrarResultadoEnTablas("ERROR: el campo PK no puede ser de tipo BOOL.");
+	             return;
+	         }
+	         campos.add(new Campo(d[0], d[1], esPK));
+	     }
+	
+	     String resultado = crearTabla(nombre, campos); // ← reutiliza lógica existente
+	     vista.mostrarResultadoEnTablas(resultado);
+	     actualizarVistaTablas();
+	 }
+	
+	 private void guiEliminarTabla() {
+	     vista.mostrarDialogoEliminarTabla(new ArrayList<>(tablas.keySet()));
+	     String nombre = vista.getTablaAEliminar();
+	     if (nombre == null) return;
+	
+	     String resultado = eliminarTabla(nombre); // ← reutiliza lógica existente
+	     vista.mostrarResultadoEnTablas(resultado);
+	     actualizarVistaTablas();
+	 }
+	
+	 private void guiListarTablas() {
+	     vista.mostrarResultadoEnTablas(listar()); // ← reutiliza lógica existente
+	 }
+	
+	 private void guiInsertar() {
+	     String nombreTabla = vista.getTablaSeleccionadaEnRegistros();
+	     if (nombreTabla == null) {
+	         vista.mostrarResultadoEnRegistros("ERROR: selecciona una tabla primero.");
+	         return;
+	     }
+	     Tabla tabla = obtenerTabla(nombreTabla);
+	
+	     // Preparar campos para el diálogo
+	     List<String[]> camposData = tabla.campos.stream()
+	         .map(c -> new String[]{c.nombre, c.tipo, String.valueOf(c.esPK)})
+	         .toList();
+	
+	     vista.mostrarDialogoInsertar(nombreTabla, camposData);
+	     List<String> valores = vista.getDatosInsertar();
+	     if (valores == null) return;
+	
+	     // Columnas en el mismo orden que los campos de la tabla
+	     List<String> columnas = tabla.campos.stream().map(c -> c.nombre).toList();
+	
+	     String resultado = insertar(nombreTabla, columnas, valores); // ← reutiliza lógica existente
+	     vista.mostrarResultadoEnRegistros(resultado);
+	     actualizarVistaTablas();
+	 }
+	
+	 private void guiConsultar() {
+		    String nombreTabla = vista.getTablaSeleccionadaEnRegistros();
+		    if (nombreTabla == null || nombreTabla.isEmpty()) {
+		        vista.mostrarResultadoEnRegistros("ERROR: selecciona una tabla primero.");
+		        return;
+		    }
+
+		    Tabla tabla = obtenerTabla(nombreTabla);
+		    if (tabla == null) {
+		        vista.mostrarResultadoEnRegistros("ERROR: la tabla '" + nombreTabla + "' no existe.");
+		        return;
+		    }
+		    
+		    List<String[]> camposData = tabla.campos.stream()
+		            .map(c -> new String[]{c.nombre, c.tipo, String.valueOf(c.esPK)})
+		            .toList();
+		        vista.mostrarEstructuraTabla(nombreTabla, camposData);
+
+		    vista.mostrarDialogoConsultar(nombreTabla);
+		    int opcion = vista.getOpcionConsultar();
+		    if (opcion == -1) return;
+
+		    String resultado;
+		    switch (opcion) {
+		        case 0 -> resultado = seleccionar(nombreTabla, null, null);
+		        case 1 -> {
+		            Campo pk = tabla.campos.stream()
+		                .filter(c -> c.esPK)
+		                .findFirst().orElse(null);
+		            String campoPK = pk != null ? pk.nombre : "";
+		            resultado = seleccionar(nombreTabla, campoPK, vista.getIdConsultar());
+		        }
+		        case 2 -> resultado = seleccionar(nombreTabla,
+		                    vista.getCampoConsultar(),
+		                    vista.getValorConsultar());
+		        default -> resultado = "Opción no válida.";
+		    }
+		    vista.mostrarResultadoEnRegistros(resultado);
+		}
+	
+	 private void guiActualizar() {
+	     String nombreTabla = vista.getTablaSeleccionadaEnRegistros();
+	     if (nombreTabla == null) {
+	         vista.mostrarResultadoEnRegistros("ERROR: selecciona una tabla primero.");
+	         return;
+	     }
+	     Tabla tabla = obtenerTabla(nombreTabla);
+	
+	     List<String[]> camposData = tabla.campos.stream()
+	         .map(c -> new String[]{c.nombre, c.tipo, String.valueOf(c.esPK)})
+	         .toList();
+	
+	     vista.mostrarDialogoActualizar(nombreTabla, camposData);
+	     String idPK     = vista.getIdActualizar();
+	     List<String> nuevosValores = vista.getNuevosValores();
+	     if (idPK == null || idPK.isEmpty()) return;
+	
+	     // Buscar la PK
+	     Campo pk = tabla.campos.stream().filter(c -> c.esPK).findFirst().orElse(null);
+	     if (pk == null) { vista.mostrarResultadoEnRegistros("ERROR: tabla sin PK."); return; }
+	
+	     // Actualizar campo por campo (solo los que no estén vacíos)
+	     List<Campo> camposNoP = tabla.campos.stream().filter(c -> !c.esPK).toList();
+	     StringBuilder sb = new StringBuilder();
+	     for (int i = 0; i < camposNoP.size() && i < nuevosValores.size(); i++) {
+	         String nuevoVal = nuevosValores.get(i);
+	         if (nuevoVal == null || nuevoVal.isEmpty()) continue;
+	         String resultado = actualizar(nombreTabla,
+	             camposNoP.get(i).nombre, nuevoVal,
+	             pk.nombre, idPK); // ← reutiliza lógica existente
+	         sb.append(resultado).append("\n");
+	     }
+	     vista.mostrarResultadoEnRegistros(sb.toString().trim());
+	     actualizarVistaTablas();
+	 }
+	
+	 private void guiEliminarRegistro() {
+		 String nombreTabla = vista.getTablaSeleccionadaEnRegistros();
+		    if (nombreTabla == null || nombreTabla.isEmpty()) {
+		        vista.mostrarResultadoEnRegistros("ERROR: selecciona una tabla primero.");
+		        return;
+		    }
+		    Tabla tabla = obtenerTabla(nombreTabla);
+		    if (tabla == null) {
+		        vista.mostrarResultadoEnRegistros("ERROR: la tabla no existe.");
+		        return;
+		    }
+	
+	     // Poblar camposActuales antes de abrir el diálogo
+	     List<String[]> camposData = tabla.campos.stream()
+	         .map(c -> new String[]{c.nombre, c.tipo, String.valueOf(c.esPK)})
+	         .toList();
+	     vista.mostrarEstructuraTabla(nombreTabla, camposData);
+	
+	     vista.mostrarDialogoEliminar(nombreTabla);
+	     int opcion = vista.getOpcionEliminar();
+	     if (opcion == -1) return;
+	
+	     String resultado;
+	     Campo pk = tabla.campos.stream().filter(c -> c.esPK).findFirst().orElse(null);
+	     switch (opcion) {
+	         case 1 -> resultado = eliminar(nombreTabla,
+	                     pk != null ? pk.nombre : "",
+	                     vista.getIdEliminar());
+	         case 2 -> resultado = eliminar(nombreTabla,
+	                     vista.getCampoEliminar(),
+	                     vista.getValorEliminar());
+	         case 3 -> resultado = eliminar(nombreTabla, null, null);
+	         default -> resultado = "Opción no válida.";
+	     }
+	     vista.mostrarResultadoEnRegistros(resultado); // ← reutiliza lógica existente
+	     actualizarVistaTablas();
+	 }
+	
+	 // Actualiza la lista de tablas y estructura en todos los paneles
+	 private void actualizarVistaTablas() {
+	     if (vista == null) return;
+	     List<String> nombres = new ArrayList<>(tablas.keySet());
+	     vista.actualizarListaTablas(nombres);
+	
+	     // Si hay una tabla seleccionada mostrar su estructura
+	     String sel = vista.getTablaSeleccionada();
+	     if (sel != null && tablas.containsKey(sel)) {
+	         List<String[]> campos = tablas.get(sel).campos.stream()
+	             .map(c -> new String[]{c.nombre, c.tipo, String.valueOf(c.esPK)})
+	             .toList();
+	         vista.mostrarEstructuraTabla(sel, campos);
+	     }
+	
+	 }
+	
+	 // Genera el texto del árbol AVL para mostrarlo en AVLPanel
+	 private String generarTextoArbol(String nombreTabla) {
+	     Tabla tabla = tablas.get(nombreTabla);
+	     if (tabla == null) return "Tabla no encontrada.";
+	     List<Fila> filas = tabla.indice.inOrdenFilas();
+	     if (filas.isEmpty()) return "(árbol vacío)";
+	     StringBuilder sb = new StringBuilder();
+	     sb.append("=== ÁRBOL AVL: ").append(nombreTabla).append(" ===\n\n");
+	     sb.append("Recorrido InOrden (orden ascendente por PK):\n\n");
+	     filas.forEach(f -> sb.append("  ").append(f).append("\n"));
+	     return sb.toString();
+	 }
+	 
+	// Método para cargar dataset (llamado desde la GUI)
+	 public void cargarDataset(int opcion) {
+	     CargadorDataset cargador = new CargadorDataset(this);
+	     
+	     if (opcion == 1) {
+	         cargador.cargarDatasetPequeno();
+	         if (vista != null) {
+	             vista.mostrarResultadoEnRegistros("✅ Dataset PEQUEÑO cargado exitosamente (5 registros)");
+	             // Actualizar vista
+	             actualizarVistaTablas();
+	             // Mostrar los datos cargados
+	             String resultado = seleccionar("estudiantes", null, null);
+	             vista.mostrarResultadoEnRegistros(resultado);
+	         }
+	     } else if (opcion == 2) {
+	         cargador.cargarDatasetMediano();
+	         if (vista != null) {
+	             vista.mostrarResultadoEnRegistros("✅ Dataset MEDIANO cargado exitosamente (30 registros)");
+	             actualizarVistaTablas();
+	             String resultado = seleccionar("estudiantes", null, null);
+	             vista.mostrarResultadoEnRegistros(resultado);
+	         }
+	     }
+	 }
 }
